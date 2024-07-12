@@ -37,7 +37,7 @@ trait Mem {
         (hi << 8) | (lo as u16)
     }
     fn mem_write_u16(&mut self, pos: u16, data: u16) {
-        let hi = (data << 8) as u8;
+        let hi = (data >> 8) as u8;
         let lo = (data & 0xff) as u8;
         self.mem_write(pos, lo);
         self.mem_write(pos + 1, hi);
@@ -201,7 +201,7 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES_MAP;
+        let ref opcodes: HashMap<u8, opcodes::OpCode> = *opcodes::OPCODES_MAP;
         loop {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
