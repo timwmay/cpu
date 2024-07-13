@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate bitflags;
 pub mod cpu;
 pub mod opcodes;
 use cpu::Mem;
@@ -8,13 +10,6 @@ use sdl2::EventPump;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
-use std::time::Duration;
-
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate bitflags;
 
 fn color(byte: u8) -> Color {
     match byte {
