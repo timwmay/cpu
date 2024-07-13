@@ -1,6 +1,3 @@
-/**
- * NES CPU (2A03, modified 6502)
- */
 use crate::opcodes;
 use std::collections::HashMap;
 
@@ -57,7 +54,7 @@ pub enum AddressingMode {
     NoneAddressing,
 }
 
-trait Mem {
+pub trait Mem {
     fn mem_read(&self, addr: u16) -> u8;
 
     fn mem_write(&mut self, addr: u16, data: u8);
@@ -99,9 +96,6 @@ impl CPU {
         }
     }
 
-    /**
-     * Fetch the address based on the Addressing Mode
-     */
     fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
@@ -170,22 +164,12 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    /**
-     * LDA [0xA9] - Load Accumulator
-     * Loads a byte of memory into the accumulator setting the zero and negative flags as appropriate.
-     *
-     * https://www.nesdev.org/obelisk-6502-guide/reference.html#LDA
-     */
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(&mode);
         let value = self.mem_read(addr);
         self.set_register_a(value);
     }
 
-    /**
-     * STA [0x85] - Store Accumulator
-     * Stores the contents of the accumulator into memory.
-     */
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write(addr, self.register_a);
@@ -214,22 +198,11 @@ impl CPU {
         self.set_register_a(data | self.register_a);
     }
 
-
-    /**
-     * TAX [0xAA] - Transfer Accumulator to X
-     * Copies the current contents of the accumulator into the X register
-     * and sets the zero and negative flags as appropriate.
-     * https://www.nesdev.org/obelisk-6502-guide/reference.html#TAX
-     */
     fn tax(&mut self) {
         self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-
-    /**
-     * Updates the status register for zero and negative flags
-     */
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
             self.status.insert(CpuFlags::ZERO);
@@ -237,19 +210,21 @@ impl CPU {
             self.status.remove(CpuFlags::ZERO);
         }
 
-        if result & 0b1000_0000 != 0 {
+        if result >> 7 == 1 {
             self.status.insert(CpuFlags::NEGATIV);
         } else {
             self.status.remove(CpuFlags::NEGATIV);
         }
     }
 
+    fn update_negative_flags(&mut self, result: u8) {
+        if result >> 7 == 1 {
+            self.status.insert(CpuFlags::NEGATIV)
+        } else {
+            self.status.remove(CpuFlags::NEGATIV)
+        }
+    }
 
-    /**
-     * INX [0xE8] - Increment X Register
-     * Adds one to the X register setting the zero and negative flags as appropriate.
-     * https://www.nesdev.org/obelisk-6502-guide/reference.html#INX
-     */
     fn inx(&mut self) {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.register_x);
@@ -266,24 +241,18 @@ impl CPU {
         self.run()
     }
 
-    /**
-     * Load program code into memory.
-     * [0x8000 .. 0xFFFF] is reserved for Program ROM
-     */
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_u16(0xFFFC, 0x8000);
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
+        self.mem_write_u16(0xFFFC, 0x0600);
     }
 
-    /**
-     * Resets the CPU and set pc to 2-byte value stored at 0xFFFC
-     */
     pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
         self.stack_pointer = STACK_RESET;
         self.status = CpuFlags::from_bits_truncate(0b100100);
+        // self.memory = [0; 0xFFFF];
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -427,7 +396,7 @@ impl CPU {
             data = data | 1;
         }
         self.mem_write(addr, data);
-        self.update_zero_and_negative_flags(data);
+        self.update_negative_flags(data);
         data
     }
 
@@ -462,7 +431,7 @@ impl CPU {
             data = data | 0b10000000;
         }
         self.mem_write(addr, data);
-        self.update_zero_and_negative_flags(data);
+        self.update_negative_flags(data);
         data
     }
 
@@ -568,6 +537,13 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         let ref opcodes: HashMap<u8, opcodes::OpCode> = *opcodes::OPCODES_MAP;
 
         loop {
@@ -575,9 +551,7 @@ impl CPU {
             self.program_counter += 1;
             let program_counter_state = self.program_counter;
 
-            let opcode = opcodes
-                .get(&code)
-                .expect(&format!("OpCode {:x} is not recognized", code));
+            let opcode = opcodes.get(&code).unwrap();
 
             match code {
                 0xa9 | 0xa5 | 0xb5 | 0xad | 0xbd | 0xb9 | 0xa1 | 0xb1 => {
@@ -867,15 +841,9 @@ impl CPU {
             if program_counter_state == self.program_counter {
                 self.program_counter += (opcode.len - 1) as u16;
             }
-        }
-    }
 
-    pub fn dump_registers(&self) {
-        println!("Register A: {:#04X}", self.register_a);
-        println!("Register X: {:#04X}", self.register_x);
-        println!("Register Y: {:#04X}", self.register_x);
-        println!("Status: {:#04X}", self.status);
-        println!("Program Counter: {:#06X}", self.program_counter);
+            callback(self);
+        }
     }
 }
 
@@ -895,10 +863,8 @@ mod test {
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let mut cpu = CPU::new();
-        cpu.load(vec![0xaa, 0x00]);
-        cpu.reset();
         cpu.register_a = 10;
-        cpu.run();
+        cpu.load_and_run(vec![0xaa, 0x00]);
 
         assert_eq!(cpu.register_x, 10)
     }
@@ -914,10 +880,8 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
-        cpu.load(vec![0xe8, 0xe8, 0x00]);
-        cpu.reset();
         cpu.register_x = 0xff;
-        cpu.run();
+        cpu.load_and_run(vec![0xe8, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 1)
     }

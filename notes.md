@@ -1,0 +1,1 @@
+let ref opcodes: HashMap<u8, opcodes::OpCode> = *opcodes::OPCODES_MAP;
