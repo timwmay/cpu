@@ -2,20 +2,21 @@ pub mod bus;
 pub mod cartridge;
 pub mod cpu;
 pub mod opcodes;
+pub mod trace;
 
 use bus::Bus;
 use cartridge::Rom;
 use cpu::Mem;
 use cpu::CPU;
-use rand::Rng;
+use trace::trace;
+// use rand::Rng;
 
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::EventPump;
-use std::time::Duration;
-
+// use std::time::Duration;
 
 #[macro_use]
 extern crate bitflags;
@@ -60,25 +61,25 @@ fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
                 ..
             } => std::process::exit(0),
             Event::KeyDown {
-                keycode: Some(Keycode::Up),
+                keycode: Some(Keycode::W),
                 ..
             } => {
                 cpu.mem_write(0xff, 0x77);
             }
             Event::KeyDown {
-                keycode: Some(Keycode::Down),
+                keycode: Some(Keycode::S),
                 ..
             } => {
                 cpu.mem_write(0xff, 0x73);
             }
             Event::KeyDown {
-                keycode: Some(Keycode::Left),
+                keycode: Some(Keycode::A),
                 ..
             } => {
                 cpu.mem_write(0xff, 0x61);
             }
             Event::KeyDown {
-                keycode: Some(Keycode::Right),
+                keycode: Some(Keycode::D),
                 ..
             } => {
                 cpu.mem_write(0xff, 0x64);
@@ -108,30 +109,31 @@ fn main() {
         .unwrap();
 
     //load the game
-    let bytes: Vec<u8> = std::fs::read("snake.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
     let rom = Rom::new(&bytes).unwrap();
 
     let bus = Bus::new(rom);
     let mut cpu = CPU::new(bus);
     cpu.reset();
-
-    let mut screen_state = [0 as u8; 32 * 3 * 32];
-    let mut rng = rand::thread_rng();
+    cpu.program_counter = 0xC000;
+    // let mut screen_state = [0 as u8; 32 * 3 * 32];
+    // let mut rng = rand::thread_rng();
 
     // run the game cycle
     cpu.run_with_callback(move |cpu| {
-        handle_user_input(cpu, &mut event_pump);
+        println!("{}", trace(cpu));
+        // handle_user_input(cpu, &mut event_pump);
 
-        cpu.mem_write(0xfe, rng.gen_range(1, 16));
+        // cpu.mem_write(0xfe, rng.gen_range(1, 16));
 
-        if read_screen_state(cpu, &mut screen_state) {
-            texture.update(None, &screen_state, 32 * 3).unwrap();
+        // if read_screen_state(cpu, &mut screen_state) {
+        //     texture.update(None, &screen_state, 32 * 3).unwrap();
 
-            canvas.copy(&texture, None, None).unwrap();
+        //     canvas.copy(&texture, None, None).unwrap();
 
-            canvas.present();
-        }
+        //     canvas.present();
+        // }
 
-        ::std::thread::sleep(std::time::Duration::new(0, 70_000));
+        // ::std::thread::sleep(std::time::Duration::new(0, 70_000));
     });
 }
